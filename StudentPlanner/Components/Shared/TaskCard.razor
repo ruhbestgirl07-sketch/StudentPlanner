@@ -1,0 +1,50 @@
+@using StudentPlanner.Models
+
+<article class="task-card card mb-3" aria-label="@($"Task: {Task.Title}")">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <h3 class="h5 mb-2">@Task.Title</h3>
+            <span class="badge @PriorityClass">@Task.Priority priority</span>
+        </div>
+        <p class="mb-1"><strong>Subject:</strong> @Task.Subject</p>
+        <p class="mb-1"><strong>Deadline:</strong> @Task.Deadline.ToString("dd MMM yyyy")</p>
+        @if (Task.IsCompleted)
+        {
+            <p class="status-completed mb-3" role="status">Completed</p>
+        }
+        else if (Task.IsOverdue)
+        {
+            <p class="status-overdue mb-3" role="status">Overdue</p>
+        }
+        else
+        {
+            <p class="status-pending mb-3" role="status">Pending</p>
+        }
+        <div class="d-flex flex-wrap gap-2">
+            @if (Task.IsCompleted)
+            {
+                <button class="btn btn-outline-success btn-sm" @onclick="() => OnToggle.InvokeAsync(Task)">Reopen</button>
+            }
+            else
+            {
+                <button class="btn btn-success btn-sm" @onclick="() => OnToggle.InvokeAsync(Task)">Complete</button>
+            }
+            <button class="btn btn-warning btn-sm" @onclick="() => OnEdit.InvokeAsync(Task)">Edit</button>
+            <button class="btn btn-danger btn-sm" @onclick="() => OnDelete.InvokeAsync(Task)">Delete</button>
+        </div>
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public StudentTask Task { get; set; } = new();
+    [Parameter] public EventCallback<StudentTask> OnToggle { get; set; }
+    [Parameter] public EventCallback<StudentTask> OnEdit { get; set; }
+    [Parameter] public EventCallback<StudentTask> OnDelete { get; set; }
+
+    private string PriorityClass => Task.Priority switch
+    {
+        "High" => "text-bg-danger",
+        "Low" => "text-bg-success",
+        _ => "text-bg-warning"
+    };
+}

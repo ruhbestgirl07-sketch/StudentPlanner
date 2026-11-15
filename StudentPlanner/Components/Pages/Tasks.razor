@@ -1,0 +1,253 @@
+@page "/tasks"
+@rendermode InteractiveServer
+@implements IDisposable
+@using StudentPlanner.Models
+@using StudentPlanner.Components.Shared
+@using StudentPlanner.Services
+@inject ITaskService TaskService
+@inject IJSRuntime JS
+
+<PageTitle>My Tasks - Student Planner</PageTitle>
+
+<header class="page-heading">
+    <h1>My Tasks</h1>
+    <p>Plan your study workload, track deadlines and monitor progress.</p>
+</header>
+
+@if (!string.IsNullOrWhiteSpace(feedback))
+{
+    <div class="alert @(hasError ? "alert-danger" : "alert-success")" role="alert">@feedback</div>
+}
+
+<div class="card p-3 p-md-4 mb-4 shadow-sm">
+    <h2 class="h4">Add a new task</h2>
+    <TaskForm Model="newTask" IdPrefix="new-task" SubmitText="Add task" OnSave="AddTask" />
+</div>
+
+@if (isEditing)
+{
+    <div class="card p-3 p-md-4 mb-4 shadow-sm" id="edit-task">
+        <h2 class="h4">Edit task</h2>
+        <TaskForm Model="editingTask" IdPrefix="edit-task" SubmitText="Save changes" ShowCancel="true"
+                  OnSave="SaveEdit" OnCancel="CancelEdit" />
+    </div>
+}
+
+<section aria-labelledby="task-list-heading">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 id="task-list-heading" class="h3 mb-0">Task list (@FilteredTasks.Count)</h2>
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-primary" @onclick="ExportCsv">Export CSV</button>
+            <button class="btn btn-outline-secondary" @onclick="ExportBackup">Backup JSON</button>
+            <button class="btn btn-outline-secondary" @onclick="ExportCalendar">Calendar ICS</button>
+        </div>
+    </div>
+    <div class="row g-2 mb-3">
+        <div class="col-12 col-md-4">
+            <label class="form-label" for="status-filter">Status</label>
+            <select id="status-filter" class="form-select" @bind="statusFilter">
+                <option value="All">All tasks</option>
+                <option value="Pending">Pending</option>
+                <option value="Completed">Completed</option>
+                <option value="Overdue">Overdue</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-5">
+            <label class="form-label" for="task-search">Search</label>
+            <input id="task-search" class="form-control" placeholder="Search title or subject..."
+                   @bind="searchText" @bind:event="oninput" />
+        </div>
+        <div class="col-12 col-md-3">
+            <label class="form-label" for="task-sort">Sort by</label>
+            <select id="task-sort" class="form-select" @bind="sortOrder">
+                <option value="Deadline">Deadline</option>
+                <option value="Priority">Priority</option>
+                <option value="Title">Title</option>
+            </select>
+        </div>
+    </div>
+
+    @if (FilteredTasks.Count == 0)
+    {
+        <div class="empty-state">
+            <h3 class="h5">No matching tasks</h3>
+            <p class="mb-0">Try changing the filter or search phrase, or add a new task.</p>
+        </div>
+    }
+    else
+    {
+        @foreach (var task in FilteredTasks)
+        {
+            <TaskCard @key="task.Id" Task="task" OnToggle="ToggleTask" OnEdit="StartEdit" OnDelete="DeleteTask" />
+        }
+    }
+</section>
+
+@code {
+    private List<StudentTask> tasks = new();
+    private StudentTask newTask = new();
+    private StudentTask editingTask = new();
+    private bool isEditing;
+    private string searchText = string.Empty;
+    private string statusFilter = "All";
+    private string sortOrder = "Deadline";
+    private string feedback = string.Empty;
+    private bool hasError;
+
+    private List<StudentTask> FilteredTasks
+    {
+        get
+        {
+            IEnumerable<StudentTask> query = tasks;
+            query = statusFilter switch
+            {
+                "Pending" => query.Where(task => !task.IsCompleted),
+                "Completed" => query.Where(task => task.IsCompleted),
+                "Overdue" => query.Where(task => task.IsOverdue),
+                _ => query
+            };
+            if (!string.IsNullOrWhiteSpace(searchText))
+                query = query.Where(task =>
+                    task.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                    task.Subject.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+            query = sortOrder switch
+            {
+                "Priority" => query.OrderByDescending(task => PriorityRank(task.Priority)).ThenBy(task => task.Deadline),
+                "Title" => query.OrderBy(task => task.Title, StringComparer.OrdinalIgnoreCase),
+                _ => query.OrderBy(task => task.Deadline)
+            };
+            return query.ToList();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        RefreshTasks();
+        TaskService.TasksChanged += HandleTasksChanged;
+    }
+
+    private void HandleTasksChanged() => _ = InvokeAsync(() =>
+    {
+        RefreshTasks();
+        StateHasChanged();
+    });
+
+    private void RefreshTasks() => tasks = TaskService.GetTasks().ToList();
+
+    private void AddTask()
+    {
+        try
+        {
+            TaskService.AddTask(newTask);
+            newTask = new StudentTask();
+            SetFeedback("Task added successfully.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private void StartEdit(StudentTask task)
+    {
+        editingTask = new StudentTask
+        {
+            Id = task.Id, Title = task.Title, Subject = task.Subject,
+            Deadline = task.Deadline, Priority = task.Priority, IsCompleted = task.IsCompleted
+        };
+        isEditing = true;
+        feedback = string.Empty;
+    }
+
+    private void SaveEdit()
+    {
+        try
+        {
+            if (!TaskService.UpdateTask(editingTask))
+            {
+                SetError("This task no longer exists. Refresh the list and try again.");
+                return;
+            }
+            isEditing = false;
+            editingTask = new StudentTask();
+            SetFeedback("Task updated successfully.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private void CancelEdit()
+    {
+        isEditing = false;
+        editingTask = new StudentTask();
+    }
+
+    private void ToggleTask(StudentTask task)
+    {
+        try
+        {
+            TaskService.SetCompleted(task.Id, !task.IsCompleted);
+            SetFeedback(task.IsCompleted ? "Task reopened." : "Task marked as completed.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SetError("The task status could not be saved. " + ex.Message);
+        }
+    }
+
+    private void DeleteTask(StudentTask task)
+    {
+        try
+        {
+            if (TaskService.DeleteTask(task.Id))
+                SetFeedback("Task deleted.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SetError("The task could not be deleted. " + ex.Message);
+        }
+    }
+
+    private async Task ExportCsv()
+    {
+        var csv = TaskExportFormatter.ToCsv(FilteredTasks);
+        await DownloadFile("student-planner-tasks.csv", "text/csv;charset=utf-8", csv,
+            "CSV export prepared successfully.");
+    }
+
+    private async Task ExportBackup()
+    {
+        var json = TaskExportFormatter.ToJsonBackup(tasks);
+        await DownloadFile("student-planner-backup.json", "application/json;charset=utf-8", json,
+            "JSON backup prepared. Keep this file in a safe location.");
+    }
+
+    private async Task ExportCalendar()
+    {
+        var calendar = TaskExportFormatter.ToIcalendar(tasks);
+        await DownloadFile("student-planner-calendar.ics", "text/calendar;charset=utf-8", calendar,
+            "Calendar export prepared. Import the ICS file into your calendar app.");
+    }
+
+    private async Task DownloadFile(string fileName, string mimeType, string content, string successMessage)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("studentPlanner.downloadText", fileName, mimeType, content);
+            SetFeedback(successMessage);
+        }
+        catch (JSException)
+        {
+            SetError("The browser could not start the download. Please try again or use another browser.");
+        }
+    }
+
+    private static int PriorityRank(string priority) => priority switch { "High" => 3, "Medium" => 2, _ => 1 };
+    private void SetFeedback(string message) { feedback = message; hasError = false; }
+    private void SetError(string message) { feedback = message; hasError = true; }
+
+    public void Dispose() => TaskService.TasksChanged -= HandleTasksChanged;
+}

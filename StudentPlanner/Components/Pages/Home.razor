@@ -1,0 +1,91 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@using StudentPlanner.Services
+@inject ITaskService TaskService
+
+<PageTitle>Student Planner - Dashboard</PageTitle>
+
+<section class="dashboard mt-3" aria-labelledby="dashboard-title">
+    <h1 id="dashboard-title" class="dashboard-title">Welcome to Student Planner!</h1>
+    <p class="lead">Organize your studies, manage your tasks, and achieve your academic goals.</p>
+    <hr />
+    <h2 class="h3">My Dashboard</h2>
+
+    <div class="row g-3 mt-2">
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="stat-card"><h3>Total tasks</h3><p>@stats.Total</p></div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="stat-card"><h3>Completed</h3><p>@stats.Completed</p></div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="stat-card"><h3>Pending</h3><p>@stats.Pending</p></div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="stat-card stat-overdue"><h3>Overdue</h3><p>@stats.Overdue</p></div>
+        </div>
+    </div>
+
+    <div class="progress-panel mt-4">
+        <div class="d-flex justify-content-between">
+            <h3 class="h5">Study progress</h3>
+            <strong>@CompletionPercentage%</strong>
+        </div>
+        <div class="progress" role="progressbar" aria-label="Task completion progress"
+             aria-valuenow="@CompletionPercentage" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width: @(CompletionPercentage)%"></div>
+        </div>
+        <p class="small text-muted mt-2 mb-0">Percentage of tasks marked as completed.</p>
+    </div>
+
+    <section class="upcoming-panel mt-4" aria-labelledby="upcoming-heading">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h3 id="upcoming-heading" class="h5 mb-0">Upcoming deadlines</h3>
+            <span class="small text-muted">Next 7 days</span>
+        </div>
+        @if (UpcomingTasks.Count == 0)
+        {
+            <p class="text-muted mt-3 mb-0">No pending deadlines in the next seven days. Keep up the good work!</p>
+        }
+        else
+        {
+            <ul class="upcoming-list mt-3 mb-0">
+                @foreach (var task in UpcomingTasks)
+                {
+                    <li @key="task.Id">
+                        <span><strong>@task.Title</strong><small>@task.Subject</small></span>
+                        <span class="text-nowrap">@task.Deadline.ToString("dd MMM")</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <div class="mt-4">
+        <a class="btn btn-primary" href="tasks">Manage my tasks</a>
+    </div>
+</section>
+
+@code {
+    private TaskStatistics stats = new(0, 0, 0, 0);
+    private List<StudentPlanner.Models.StudentTask> upcomingTasks = new();
+    private int CompletionPercentage => stats.Total == 0 ? 0 : (int)Math.Round(stats.Completed * 100.0 / stats.Total);
+    private List<StudentPlanner.Models.StudentTask> UpcomingTasks => upcomingTasks;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+        TaskService.TasksChanged += HandleChanged;
+    }
+
+    private void Refresh()
+    {
+        stats = TaskService.GetStatistics();
+        upcomingTasks = TaskService.GetTasks()
+            .Where(task => !task.IsCompleted && task.Deadline.Date >= DateTime.Today && task.Deadline.Date <= DateTime.Today.AddDays(7))
+            .OrderBy(task => task.Deadline).Take(5).ToList();
+    }
+    private void HandleChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+    public void Dispose() => TaskService.TasksChanged -= HandleChanged;
+}

@@ -1,0 +1,24 @@
+@page "/about"
+
+<PageTitle>About - Student Planner</PageTitle>
+<header class="page-heading">
+    <h1>About Student Planner</h1>
+    <p>A lightweight academic task manager built with C# and Blazor.</p>
+</header>
+<section class="card shadow-sm p-4 mb-4">
+    <h2 class="h4">Project purpose</h2>
+    <p>Student Planner helps students organize assignments by subject, deadline, and priority, monitor completion progress, and keep a portable backup of their work.</p>
+    <h2 class="h4 mt-3">Technology stack</h2>
+    <ul>
+        <li>ASP.NET Core and .NET 8</li>
+        <li>Blazor interactive server-side Razor components</li>
+        <li>C# services and dependency injection</li>
+        <li>JSON file persistence with atomic replacement and recovery copies</li>
+        <li>Bootstrap and custom responsive CSS</li>
+        <li>xUnit automated tests</li>
+    </ul>
+    <h2 class="h4 mt-3">Data and privacy</h2>
+    <p>This coursework edition stores a shared task list in the application's <code>App_Data/tasks.json</code> file. It does not implement user accounts or private per-student workspaces. Do not enter confidential or sensitive information.</p>
+    <h2 class="h4 mt-3">Service status</h2>
+    <p class="mb-0">The application health endpoint is available at <a href="/health">/health</a>.</p>
+</section>

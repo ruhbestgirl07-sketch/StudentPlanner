@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.tmp
+
+# Personal task data
+**/App_Data/tasks.json
+
+# Local development settings
+**/appsettings.Development.json

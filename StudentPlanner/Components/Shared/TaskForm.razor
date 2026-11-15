@@ -1,0 +1,48 @@
+@using StudentPlanner.Models
+
+<EditForm Model="Model" OnValidSubmit="Submit">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="alert alert-danger" />
+    <div class="mb-3">
+        <label class="form-label" for="@($"{IdPrefix}-title")">Task title</label>
+        <InputText id="@($"{IdPrefix}-title")" class="form-control" @bind-Value="Model.Title" maxlength="100" />
+        <ValidationMessage For="@(() => Model.Title)" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="@($"{IdPrefix}-subject")">Subject</label>
+        <InputText id="@($"{IdPrefix}-subject")" class="form-control" @bind-Value="Model.Subject" maxlength="60" />
+        <ValidationMessage For="@(() => Model.Subject)" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="@($"{IdPrefix}-deadline")">Deadline</label>
+        <InputDate id="@($"{IdPrefix}-deadline")" class="form-control" @bind-Value="Model.Deadline" />
+        <ValidationMessage For="@(() => Model.Deadline)" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="@($"{IdPrefix}-priority")">Priority</label>
+        <InputSelect id="@($"{IdPrefix}-priority")" class="form-select" @bind-Value="Model.Priority">
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+        </InputSelect>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit">@SubmitText</button>
+        @if (ShowCancel)
+        {
+            <button class="btn btn-outline-secondary" type="button" @onclick="Cancel">Cancel</button>
+        }
+    </div>
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired] public StudentTask Model { get; set; } = new();
+    [Parameter] public string IdPrefix { get; set; } = "task";
+    [Parameter] public string SubmitText { get; set; } = "Save";
+    [Parameter] public bool ShowCancel { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private Task Submit() => OnSave.InvokeAsync();
+    private Task Cancel() => OnCancel.InvokeAsync();
+}
